@@ -8,7 +8,7 @@
 
 <div id="title">
 	Royal Game of Ur&nbsp;&nbsp;|&nbsp;&nbsp;
-	<span class="cuneiform">𒊒𒅋 𒂵𒅎 𒄴 𒌨</span>
+	<span class="cuneiform">𒊒𒅋𒂵𒅎𒄴𒌨</span>
 </div>
 
 <div id="board">
@@ -46,8 +46,8 @@
 	}
 
 	@font-face {
-		font-family: 'CuneiformNA';
-		src: url('/CuneiformNA.ttf');
+		font-family: 'Assurbanipal';
+		src: url('/Assurbanipal.ttf');
 	}
 
 	#title {
@@ -59,9 +59,10 @@
 	}
 
 	.cuneiform {
-		font-family: 'CuneiformNA';
-		font-weight: bold;
-		line-height: 1;
+		display: inline-block;
+		transform: translateY(3px);
+		font-family: 'Assurbanipal';
+		font-size: 36px;
 	}
 
 	#board {
