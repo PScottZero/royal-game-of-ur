@@ -6,12 +6,17 @@
 	<title>Royal Game of Ur</title>
 </svelte:head>
 
-<div id="sidebar">
-	<p class="cuneiform">𒊒𒅋 𒂵𒅎 𒄴 𒌨</p>
+<div id="title">
+	Royal Game of Ur&nbsp;&nbsp;|&nbsp;&nbsp;
+	<span class="cuneiform">𒊒𒅋 𒂵𒅎 𒄴 𒌨</span>
 </div>
 
 <div id="board">
 	<img src="{base}/board.svg" alt="Game Board" />
+</div>
+
+<div id="menu">
+	<h1>⚠ WORK IN PROGRESS ⚠</h1>
 </div>
 
 <style lang="scss">
@@ -25,12 +30,12 @@
 		html,
 		body {
 			color: black;
-			font-family: Arial, Helvetica, sans-serif;
+			font-family: 'Raleway', Arial, Helvetica, sans-serif;
 		}
 
 		body {
 			display: grid;
-			grid-template-columns: 20rem 1fr;
+			grid-template-rows: 1fr auto 1fr;
 			width: 100vw;
 			height: 100vh;
 		}
@@ -45,23 +50,33 @@
 		src: url('/CuneiformNA.ttf');
 	}
 
-	#sidebar {
-		background-color: #c8ba9f;
-		padding: 1rem;
+	#title {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		font-size: 28px;
+		padding: 2rem;
+	}
+
+	.cuneiform {
+		font-family: 'CuneiformNA';
+		font-weight: bold;
+		line-height: 1;
 	}
 
 	#board {
-		padding: 5%;
+		padding: 0 2rem;
 
 		img {
+			object-fit: contain;
 			width: 100%;
 			height: 100%;
 		}
 	}
 
-	.cuneiform {
-		font-family: 'CuneiformNA';
-		font-size: 20px;
-		font-weight: bold;
+	#menu {
+		display: flex;
+		justify-content: center;
+		align-items: center;
 	}
 </style>
