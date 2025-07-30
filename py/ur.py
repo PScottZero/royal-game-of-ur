@@ -119,10 +119,17 @@ class RoyalGameOfUr:
 
   @property
   def movable_pieces(self) -> list[int]:
-    used = [i for i, tile in enumerate(self.pieces) if tile != self.path[0]]
-    unused = [i for i, tile in enumerate(self.pieces) if tile == self.path[0]]
-    available = used + ([unused[0]] if unused else [])
+    first_unused = [self.unused_pieces[0]] if self.unused_pieces else []
+    available = self.used_pieces + first_unused
     return [i for i in available if self.can_move_piece(i)]
+
+  @property
+  def used_pieces(self) -> list[int]:
+    return [i for i in range(NUM_PIECES) if i not in self.unused_pieces]
+
+  @property
+  def unused_pieces(self) -> list[int]:
+    return self.p1_unused_pieces if self.turn else self.p2_unused_pieces
 
   @property
   def p1_unused_pieces(self) -> list[int]:
@@ -142,34 +149,18 @@ class RoyalGameOfUr:
 
   @property
   def p1_score(self) -> int:
-    return len(
-      [i for i, tile in enumerate(self.p1_pieces) if tile == P1_PATH[-1]]
-    )
+    return sum(map(lambda tile: tile == P1_PATH[-1], self.p1_pieces))
 
   @property
   def p2_score(self) -> int:
-    return len(
-      [i for i, tile in enumerate(self.p2_pieces) if tile == P2_PATH[-1]]
-    )
+    return sum(map(lambda tile: tile == P2_PATH[-1], self.p2_pieces))
 
   @property
   def winner(self) -> Optional[bool]:
-    p1_won = True
-    for piece_tile in self.p1_pieces:
-      if piece_tile != P1_PATH[-1]:
-        p1_won = False
-        break
-    if p1_won:
+    if self.p1_pieces.count(P1_PATH[-1]) == NUM_PIECES:
       return P1
-
-    p2_won = True
-    for piece_tile in self.p1_pieces:
-      if piece_tile != P1_PATH[-1]:
-        p2_won = False
-        break
-    if p2_won:
+    if self.p2_pieces.count(P2_PATH[-1]) == NUM_PIECES:
       return P2
-
     return None
 
   def print_board(self) -> None:
