@@ -228,34 +228,4 @@ def run():
       time.sleep(1.5)
 
 
-def test_path():
-  game = RoyalGameOfUr()
-
-  print("START")
-  game.print_board()
-
-  while True:
-    game.roll()
-    if game.can_move_piece(0):
-      game.move(0)
-      game.turn = P1
-    print(f"ROLLED {game.roll_value}")
-    game.print_board()
-    if game.p1_pieces[0] == P1_PATH[-1]:
-      break
-
-
-def test_collision():
-  game = RoyalGameOfUr()
-  game.p1_pieces[0] = SAFE_ROSETTE_TILE - 3
-  game.p1_pieces[1] = SAFE_ROSETTE_TILE - 1
-  game.p2_pieces[0] = SAFE_ROSETTE_TILE - 2
-  game.p2_pieces[1] = SAFE_ROSETTE_TILE
-  game.print_board()
-
-  for i in range(NUM_DICE + 1):
-    game.dice = ([5] * i) + ([0] * (NUM_DICE - i))
-    print(game.roll_value, game.can_move_piece(0))
-
-
 run()
