@@ -31,8 +31,8 @@
 	const CANVAS_TILE_OFFSET = 200;
 	const CANVAS_PIECE_SIZE = 128;
 
-	const P1_COLOR = "#0000ff";
-	const P2_COLOR = "#ff0000";
+	const P1_COLOR = '#e5e4d5';
+	const P2_COLOR = '#555f6c';
 
 	const P1 = true;
 	const P2 = false;
@@ -53,8 +53,8 @@
 		turn: boolean;
 
 		constructor() {
-			this.p1Pieces = $state(new Array(NUM_PIECES).fill(P1_PATH[0]));
-			this.p2Pieces = $state(new Array(NUM_PIECES).fill(P2_PATH[0]));
+			this.p1Pieces = new Array(NUM_PIECES).fill(P1_PATH[0]);
+			this.p2Pieces = new Array(NUM_PIECES).fill(P2_PATH[0]);
 			this.dice = [0, 0, 0, 0];
 			this.turn = P1;
 		}
@@ -123,7 +123,7 @@
 
 		roll(): void {
 			for (let i = 0; i < NUM_DICE; i++) {
-				this.dice[i] = Math.floor(Math.random() * 6);
+				this.dice[i] = randint(6);
 			}
 		}
 
@@ -131,6 +131,20 @@
 			return this.dice
 				.map((d) => (d > 2 ? 1 : 0))
 				.reduce((sum: number, val: number) => sum + val, 0);
+		}
+
+		getWinner(): boolean | undefined {
+			if (
+				this.p1Pieces.filter((t) => t === P1_PATH.at(-1)).length === NUM_PIECES
+			) {
+				return P1;
+			}
+			if (
+				this.p2Pieces.filter((t) => t === P2_PATH.at(-1)).length === NUM_PIECES
+			) {
+				return P2;
+			}
+			return undefined;
 		}
 
 		// :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -149,6 +163,22 @@
 			return movable;
 		}
 
+		// getUsedPieceIndices(): number[] {
+		// 	const pieces = this.getPieces();
+		// 	const path = this.getPath();
+		// 	return pieces
+		// 		.filter((tile) => tile !== path[0])
+		// 		.map((tile) => pieces.indexOf(tile));
+		// }
+
+		// getUnusedPieceIndices(): number[] {
+		// 	const pieces = this.getPieces();
+		// 	const path = this.getPath();
+		// 	return pieces
+		// 		.filter((tile) => tile === path[0])
+		// 		.map((tile) => pieces.indexOf(tile));
+		// }
+
 		getPath(): number[] {
 			return this.turn ? P1_PATH : P2_PATH;
 		}
@@ -163,40 +193,57 @@
 	}
 
 	const game = new RoyalGameOfUr();
-	
-	// game.p1Pieces[0] = 0;
-	// game.p1Pieces[1] = 1;
-	// game.p1Pieces[2] = 2;
-	// game.p1Pieces[3] = 3;
-	// game.p1Pieces[4] = 8;
-	// game.p1Pieces[5] = 10;
-	// game.p1Pieces[6] = 12;
 
-	// game.p2Pieces[0] = 16;
-	// game.p2Pieces[1] = 17;
-	// game.p2Pieces[2] = 18;
-	// game.p2Pieces[3] = 19;
-	// game.p2Pieces[4] = 9;
-	// game.p2Pieces[5] = 11;
-	// game.p2Pieces[6] = 13;
+	function getTileCenterCoords(tile: number): number[] {
+		const col = tile % 8;
+		const row = Math.floor(tile / 8);
+
+		let x = col * CANVAS_TILE_OFFSET + CANVAS_OFFSET;
+		let y = row * CANVAS_TILE_OFFSET + CANVAS_OFFSET;
+		x += CANVAS_TILE_SIZE / 2;
+		y += CANVAS_TILE_SIZE / 2;
+
+		return [x, y];
+	}
+
+	function clickToTile(e: MouseEvent): number {
+		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
+		const bounds = canvas.getBoundingClientRect();
+
+		const canvasScreenWidth = bounds.right - bounds.left;
+		const canvasScreenHeight = bounds.bottom - bounds.top;
+		const xRatio = canvas.width / canvasScreenWidth;
+		const yRatio = canvas.height / canvasScreenHeight;
+
+		const x = Math.floor((e.clientX - bounds.left) * xRatio);
+		const y = Math.floor((e.clientY - bounds.top) * yRatio);
+
+		for (let tile = 0; tile < NUM_TILES; tile++) {
+			const [tileX, tileY] = getTileCenterCoords(tile);
+			const lowerX = tileX - CANVAS_TILE_SIZE / 2;
+			const upperX = tileX + CANVAS_TILE_SIZE / 2;
+			const lowerY = tileY - CANVAS_TILE_SIZE / 2;
+			const upperY = tileY + CANVAS_TILE_SIZE / 2;
+			if (x >= lowerX && x <= upperX && y >= lowerY && y <= upperY) {
+				return tile;
+			}
+		}
+
+		return -1;
+	}
 
 	function renderPieces() {
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 		const ctx = canvas.getContext('2d')!;
 
+		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
 		for (let tile = 0; tile < NUM_TILES; tile++) {
 			const drawP1Piece = game.p1Pieces.includes(tile);
 			const drawP2Piece = game.p2Pieces.includes(tile);
-			
-			if ((drawP1Piece || drawP2Piece) && !INVISIBLE_TILES.includes(tile)) {
-				const col = tile % 8;
-				const row = Math.floor(tile / 8);
-				
-				let x = col * CANVAS_TILE_OFFSET + CANVAS_OFFSET;
-				let y = row * CANVAS_TILE_OFFSET + CANVAS_OFFSET;
-				x += CANVAS_TILE_SIZE / 2;
-				y += CANVAS_TILE_SIZE / 2;
 
+			if ((drawP1Piece || drawP2Piece) && !INVISIBLE_TILES.includes(tile)) {
+				const [x, y] = getTileCenterCoords(tile);
 				ctx.fillStyle = drawP1Piece ? P1_COLOR : P2_COLOR;
 				ctx.beginPath();
 				ctx.arc(x, y, CANVAS_PIECE_SIZE / 2, 0, 2 * Math.PI);
@@ -205,7 +252,31 @@
 		}
 	}
 
-	onMount(() => renderPieces());
+	function takeTurn() {
+		if (game.getWinner() !== undefined) game.reset();
+		game.roll();
+		const movable = game.getMovablePieceIndices();
+		if (movable.length > 0) {
+			const pieceIdx = movable[randint(movable.length)];
+			game.move(pieceIdx);
+			renderPieces();
+		}
+		setTimeout(takeTurn, 2000);
+	}
+
+	function randint(max: number): number {
+		return Math.floor(Math.random() * max);
+	}
+
+	onMount(() => {
+		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
+		canvas.addEventListener('click', clickToTile);
+		const timeout = setTimeout(takeTurn, 2000);
+		return () => {
+			canvas.removeEventListener('click', clickToTile);
+			clearTimeout(timeout);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -214,7 +285,7 @@
 
 <div id="title">
 	Royal Game of Ur&nbsp;&nbsp;|&nbsp;&nbsp;
-	<span class="cuneiform">𒊒𒅋𒂵𒅎𒄴𒌨</span>
+	<span class="cuneiform">𒊒𒅋 𒂵𒅎 𒄴 𒌨</span>
 </div>
 
 <div id="board">
@@ -222,9 +293,7 @@
 	<canvas id="pieces" width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
 </div>
 
-<div id="menu">
-	<h1>⚠ WORK IN PROGRESS ⚠</h1>
-</div>
+<div id="menu"></div>
 
 <style lang="scss">
 	:global {
