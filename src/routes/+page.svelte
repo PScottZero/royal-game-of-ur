@@ -31,9 +31,6 @@
 	const CANVAS_TILE_OFFSET = 200;
 	const CANVAS_PIECE_SIZE = 128;
 
-	const P1_COLOR = '#e5e4d5';
-	const P2_COLOR = '#555f6c';
-
 	const P1 = true;
 	const P2 = false;
 
@@ -45,6 +42,9 @@
 	const INVISIBLE_TILES = [4, 5, 20, 21];
 	const ROSETTE_TILES = [0, 6, 11, 16, 22];
 	const SAFE_ROSETTE_TILE = 11;
+
+	let p1Score = $state(0);
+	let p2Score = $state(0);
 
 	class RoyalGameOfUr {
 		p1Pieces: number[];
@@ -133,17 +133,17 @@
 				.reduce((sum: number, val: number) => sum + val, 0);
 		}
 
+		getP1Score(): number {
+			return this.p1Pieces.filter((t) => t === P1_PATH.at(-1)).length;
+		}
+
+		getP2Score(): number {
+			return this.p2Pieces.filter((t) => t === P2_PATH.at(-1)).length;
+		}
+
 		getWinner(): boolean | undefined {
-			if (
-				this.p1Pieces.filter((t) => t === P1_PATH.at(-1)).length === NUM_PIECES
-			) {
-				return P1;
-			}
-			if (
-				this.p2Pieces.filter((t) => t === P2_PATH.at(-1)).length === NUM_PIECES
-			) {
-				return P2;
-			}
+			if (this.getP1Score() === NUM_PIECES) return P1;
+			if (this.getP2Score() === NUM_PIECES) return P2;
 			return undefined;
 		}
 
@@ -243,13 +243,19 @@
 			const drawP2Piece = game.p2Pieces.includes(tile);
 
 			if ((drawP1Piece || drawP2Piece) && !INVISIBLE_TILES.includes(tile)) {
-				const [x, y] = getTileCenterCoords(tile);
-				ctx.fillStyle = drawP1Piece ? P1_COLOR : P2_COLOR;
-				ctx.beginPath();
-				ctx.arc(x, y, CANVAS_PIECE_SIZE / 2, 0, 2 * Math.PI);
-				ctx.fill();
+				const img = new Image();
+				img.src = `${base}/${drawP1Piece ? 'piece1' : 'piece2'}.svg`;
+				img.onload = () => {
+					let [x, y] = getTileCenterCoords(tile);
+					x -= CANVAS_PIECE_SIZE / 2;
+					y -= CANVAS_PIECE_SIZE / 2;
+					ctx.drawImage(img, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+				};
 			}
 		}
+
+		p1Score = game.getP1Score();
+		p2Score = game.getP2Score();
 	}
 
 	function takeTurn() {
@@ -257,7 +263,8 @@
 		game.roll();
 		const movable = game.getMovablePieceIndices();
 		if (movable.length > 0) {
-			const pieceIdx = movable[randint(movable.length)];
+			const idx = randint(2) === 0 ? randint(movable.length) : 0;
+			const pieceIdx = movable[idx];
 			game.move(pieceIdx);
 			renderPieces();
 		}
@@ -293,7 +300,14 @@
 	<canvas id="pieces" width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
 </div>
 
-<div id="menu"></div>
+<div id="menu">
+	<div id="player1-info" class="player-info">
+		{p1Score}
+	</div>
+	<div id="player2-info" class="player-info">
+		{p2Score}
+	</div>
+</div>
 
 <style lang="scss">
 	:global {
@@ -363,8 +377,29 @@
 	}
 
 	#menu {
-		display: flex;
-		justify-content: center;
-		align-items: center;
+		position: relative;
+	}
+
+	.player-info {
+		position: absolute;
+		text-align: center;
+		bottom: 1rem;
+		font-size: 36px;
+		border-radius: 4px;
+		width: 3rem;
+		height: 3rem;
+		line-height: 2.65rem;
+	}
+
+	#player1-info {
+		color: #e5ded1;
+		border: 1px solid #e5ded1;
+		left: 1rem;
+	}
+
+	#player2-info {
+		color: #9296b8;
+		border: 1px solid #9296b8;
+		right: 1rem;
 	}
 </style>
