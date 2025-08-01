@@ -2,5 +2,8 @@
   "cSpell.words": [
     "randint",
     "𒊒𒅋𒂵𒅎𒄴𒌨"
-  ]
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
 }
