@@ -107,7 +107,7 @@ export class RoyalGameOfUr {
 
 	roll(): void {
 		for (let i = 0; i < NUM_DICE; i++) {
-			this.dice[i] = randint(6);
+			this.dice[i] = Math.floor(Math.random() * 6);
 		}
 	}
 
@@ -125,11 +125,11 @@ export class RoyalGameOfUr {
 		return this.p2Pieces.filter((t) => t === P2_PATH.at(-1)).length;
 	}
 
-	getP1UnusedPiecesCount(): number {
+	getP1UnusedCount(): number {
 		return this.p1Pieces.filter((tile) => tile === P1_PATH[0]).length;
 	}
 
-	getP2UnusedPiecesCount(): number {
+	getP2UnusedCount(): number {
 		return this.p2Pieces.filter((tile) => tile === P2_PATH[0]).length;
 	}
 
@@ -166,8 +166,4 @@ export class RoyalGameOfUr {
 	getOpponentPath(): number[] {
 		return this.turn ? P2_PATH : P1_PATH;
 	}
-}
-
-export function randint(max: number): number {
-	return Math.floor(Math.random() * max);
 }

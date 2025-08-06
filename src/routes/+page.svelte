@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	import { NUM_PIECES, randint, RoyalGameOfUr } from '$lib/ur';
+	import { NUM_PIECES, RoyalGameOfUr } from '$lib/ur';
 	import { onMount } from 'svelte';
-
-	const TURN_TIMEOUT = 1500;
 
 	const CANVAS_WIDTH = 1700;
 	const CANVAS_HEIGHT = 700;
@@ -12,27 +10,18 @@
 	const CANVAS_TILE_OFFSET = 200;
 	const CANVAS_PIECE_SIZE = 128;
 
-	const NUM_TILES = 24;
 	const INVISIBLE_TILES = [4, 5, 20, 21];
 	const START_TILES = [4, 20];
+
+	const game = new RoyalGameOfUr();
 
 	let p1Score = $state(0);
 	let p2Score = $state(0);
 	let p1UnusedPiecesCount = $state(NUM_PIECES);
 	let p2UnusedPiecesCount = $state(NUM_PIECES);
 	let dice = $state([0, 0, 0, 0]);
-
-	let pieceImg1: HTMLImageElement | undefined = undefined;
-	let pieceImg2: HTMLImageElement | undefined = undefined;
-
-	function loadImage(imageName: string): HTMLImageElement {
-		const img = new Image();
-		img.src = `${base}/${imageName}`;
-		img.onload = () => renderPieces();
-		return img;
-	}
-
-	const game = new RoyalGameOfUr();
+	let turn = $state(true);
+	let winner: boolean | undefined = $state(undefined);
 
 	function getTileCenterCoords(tile: number): number[] {
 		const col = tile % 8;
@@ -46,7 +35,58 @@
 		return [x, y];
 	}
 
-	function clickToTile(e: MouseEvent): number {
+	function renderPieces() {
+		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
+		const ctx = canvas.getContext('2d')!;
+
+		const piece1 = document.getElementById('piece1') as HTMLImageElement;
+		const piece2 = document.getElementById('piece2') as HTMLImageElement;
+
+		const allPieces = game.p1Pieces.concat(game.p2Pieces);
+		const currPieces = game.getPieces();
+		const movablePieces = game.getMovablePieceIndices();
+
+		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+		for (const pieceTile of allPieces) {
+			const startTile = START_TILES[game.turn ? 0 : 1];
+			const startPieceMovable =
+				pieceTile === startTile &&
+				movablePieces.includes(currPieces.indexOf(pieceTile));
+
+			if (!INVISIBLE_TILES.includes(pieceTile) || startPieceMovable) {
+				let [x, y] = getTileCenterCoords(pieceTile);
+				if (startTile === pieceTile) {
+					x += 16;
+					y += game.turn ? -40 : 40;
+				}
+
+				const pieceIdx = game.getPieces().indexOf(pieceTile);
+				if (movablePieces.includes(pieceIdx)) {
+					ctx.fillStyle = '#0055ff';
+					ctx.beginPath();
+					ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
+					ctx.fill();
+				}
+
+				x -= CANVAS_PIECE_SIZE / 2;
+				y -= CANVAS_PIECE_SIZE / 2;
+
+				const img = game.p1Pieces.includes(pieceTile) ? piece1 : piece2;
+				ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+			}
+		}
+
+		p1Score = game.getP1Score();
+		p2Score = game.getP2Score();
+		p1UnusedPiecesCount = game.getP1UnusedCount();
+		p2UnusedPiecesCount = game.getP2UnusedCount();
+		dice = game.dice;
+		turn = game.turn;
+		winner = game.getWinner();
+	}
+
+	function moveClickedPiece(e: MouseEvent) {
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 		const bounds = canvas.getBoundingClientRect();
 
@@ -58,111 +98,49 @@
 		const x = Math.floor((e.clientX - bounds.left) * xRatio);
 		const y = Math.floor((e.clientY - bounds.top) * yRatio);
 
-		for (let tile = 0; tile < NUM_TILES; tile++) {
+		for (const pieceIdx of game.getMovablePieceIndices()) {
+			const tile = game.getPieces()[pieceIdx];
 			const [tileX, tileY] = getTileCenterCoords(tile);
 			const lowerX = tileX - CANVAS_TILE_SIZE / 2;
 			const upperX = tileX + CANVAS_TILE_SIZE / 2;
 			const lowerY = tileY - CANVAS_TILE_SIZE / 2;
 			const upperY = tileY + CANVAS_TILE_SIZE / 2;
 			if (x >= lowerX && x <= upperX && y >= lowerY && y <= upperY) {
-				return tile;
+				game.move(pieceIdx);
+				roll();
+				break;
 			}
 		}
-
-		return -1;
 	}
 
-	function renderPieces(drawMovable = true) {
-		if (pieceImg1 !== undefined && pieceImg2 !== undefined) {
-			const canvas = document.getElementById('pieces') as HTMLCanvasElement;
-			const ctx = canvas.getContext('2d')!;
-
-			ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-			for (let tile = 0; tile < NUM_TILES; tile++) {
-				const drawP1Piece = game.p1Pieces.includes(tile);
-				const drawP2Piece = game.p2Pieces.includes(tile);
-
-				const startTile = START_TILES[game.turn ? 0 : 1];
-
-				if (
-					(drawP1Piece || drawP2Piece) &&
-					(!INVISIBLE_TILES.includes(tile) ||
-						(drawMovable && startTile === tile))
-				) {
-					let [x, y] = getTileCenterCoords(tile);
-					if (startTile === tile) {
-						x += 16;
-						y += game.turn ? -40 : 40;
-					}
-
-					const pieceIdx = game.getPieces().indexOf(tile);
-					const movable = game.getMovablePieceIndices();
-					if (drawMovable && movable.includes(pieceIdx)) {
-						ctx.fillStyle = '#0055ff';
-						ctx.beginPath();
-						ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
-						ctx.fill();
-					}
-
-					x -= CANVAS_PIECE_SIZE / 2;
-					y -= CANVAS_PIECE_SIZE / 2;
-
-					const img = drawP1Piece ? pieceImg1 : pieceImg2;
-					ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
-				}
-			}
-
-			p1Score = game.getP1Score();
-			p2Score = game.getP2Score();
-			p1UnusedPiecesCount = game.getP1UnusedPiecesCount();
-			p2UnusedPiecesCount = game.getP2UnusedPiecesCount();
-			dice = game.dice;
-		}
-	}
-
-	function takeTurn1() {
-		if (game.getWinner() !== undefined) game.reset();
-		game.roll();
-		renderPieces();
-		setTimeout(takeTurn2, TURN_TIMEOUT);
-	}
-
-	function takeTurn2() {
-		const movable = game.getMovablePieceIndices();
-		if (movable.length > 0) {
-			const idx = randint(2) === 0 ? randint(movable.length) : 0;
-			const pieceIdx = movable[idx];
-			game.move(pieceIdx);
-			renderPieces(false);
-		}
-		setTimeout(takeTurn1, TURN_TIMEOUT);
-	}
-
-	function dieValueToClass(idx: number): string {
+	function dieClass(idx: number): string {
 		let val = dice[idx];
 		if (val > 2) val -= 3;
-		switch (val) {
-			default:
-			case 0:
-				return "";
-			case 1:
-				return "rotate120";
-			case 2:
-				return "rotate240"
+		if (val === 1) return 'rotate120';
+		if (val === 2) return 'rotate240';
+		return '';
+	}
+
+	function roll() {
+		game.roll();
+		renderPieces();
+		if (game.getMovablePieceIndices().length === 0) {
+			game.turn = !game.turn;
+			setTimeout(() => roll(), 1500);
 		}
+	}
+
+	function resetGame() {
+		game.reset();
+		roll();
 	}
 
 	onMount(() => {
-		pieceImg1 = loadImage('piece1.svg');
-		pieceImg2 = loadImage('piece2.svg');
-
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
-		canvas.addEventListener('click', clickToTile);
-		const timeout = setTimeout(takeTurn1, TURN_TIMEOUT);
+		canvas.addEventListener('click', moveClickedPiece);
+		roll();
 		return () => {
-			canvas.removeEventListener('click', clickToTile);
-			clearTimeout(timeout);
+			canvas.removeEventListener('click', moveClickedPiece);
 		};
 	});
 </script>
@@ -177,12 +155,18 @@
 </div>
 
 <div id="board">
+	{#if winner !== undefined }
+		<div id="reset">
+			<p>Player {winner ? "1" : "2"} Wins!!!</p>
+			<button onclick={resetGame}>New Game</button>
+		</div>
+	{/if}
 	<img src="{base}/board.svg" alt="Game Board" />
 	<canvas id="pieces" width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
 </div>
 
 <div id="menu">
-	<div id="player1-info" class="player-info">
+	<div id="player1-info" class="player-info {turn ? 'turn' : ''}">
 		<span>{p1Score}</span>
 		{#each { length: p1UnusedPiecesCount }, _}
 			<img src="{base}/piece1.svg" alt="Player 1 Piece" />
@@ -190,16 +174,23 @@
 	</div>
 	<div id="dice">
 		{#each { length: 4 }, i}
-			<img src="{base}/die{dice[i] > 2 ? "2" : "1"}.svg" class={dieValueToClass(i)} alt="Die" />
+			<img
+				src="{base}/die{dice[i] > 2 ? '2' : '1'}.svg"
+				class={dieClass(i)}
+				alt="Die"
+			/>
 		{/each}
 	</div>
-	<div id="player2-info" class="player-info">
+	<div id="player2-info" class="player-info {turn ? '' : 'turn'}">
 		{#each { length: p2UnusedPiecesCount }, _}
 			<img src="{base}/piece2.svg" alt="Player 2 Piece" />
 		{/each}
 		<span>{p2Score}</span>
 	</div>
 </div>
+
+<img src="{base}/piece1.svg" id="piece1" alt="P1 Piece" style="display: none" />
+<img src="{base}/piece2.svg" id="piece2" alt="P2 Piece" style="display: none" />
 
 <style lang="scss">
 	:global {
@@ -297,6 +288,11 @@
 	#player1-info {
 		justify-content: left;
 		color: #e5ded1;
+		border: 1px solid #374560;
+
+		&.turn {
+			border-color: #e5ded1;
+		}
 
 		img {
 			margin-right: -2rem;
@@ -314,6 +310,11 @@
 	#player2-info {
 		justify-content: right;
 		color: #95a6bd;
+		border: 1px solid #374560;
+
+		&.turn {
+			border-color: #95a6bd;
+		}
 
 		img {
 			margin-left: -2rem;
@@ -329,6 +330,7 @@
 	}
 
 	#dice {
+		position: relative;
 		display: flex;
 		justify-self: center;
 		gap: 0.5rem;
@@ -337,16 +339,35 @@
 
 		img {
 			height: 100%;
+			transform-origin: center 63%;
 		}
 	}
 
 	.rotate120 {
-		transform-origin: center 63%;
-    transform: rotate(120deg);
+		transform: rotate(120deg);
 	}
 
 	.rotate240 {
-		transform-origin: center 63%;
 		transform: rotate(240deg);
+	}
+
+	#reset {
+		z-index: 1;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		border-radius: 4px;
+		color: white;
+		background-color: #374560;
+		border: 1px solid white;
+		padding: 4rem;
+		font-size: 28px;
+
+		button {
+			width: 100%;
+			height: 2rem;
+			font-size: 18px;
+		}
 	}
 </style>
