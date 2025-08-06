@@ -14,10 +14,13 @@
 # 1 --- 1  0 --- 1  1 --- 0 | 0 --- 0  1 --- 0  0 --- 1
 #   (0)      (1)      (2)   |   (3)      (4)      (5)
 
+import math
 import os
 import random
 import time
 from typing import Optional
+
+MAX_DEPTH = 10
 
 NUM_TILES = 24
 NUM_PIECES = 7
@@ -55,6 +58,14 @@ class RoyalGameOfUr:
     self.p2_pieces = [P2_PATH[0]] * NUM_PIECES
     self.dice = [0] * NUM_DICE
     self.turn = P1
+
+  def copy(self) -> "RoyalGameOfUr":
+    new_game = RoyalGameOfUr()
+    new_game.p1_pieces = list(self.p1_pieces)
+    new_game.p2_pieces = list(self.p2_pieces)
+    new_game.dice = list(self.dice)
+    new_game.turn = self.turn
+    return new_game
 
   def move(self, piece_idx: int) -> None:
     tile = self.pieces[piece_idx]
@@ -185,6 +196,45 @@ class RoyalGameOfUr:
     print(board_str)
 
 
+def get_computer_move(initial_node: RoyalGameOfUr) -> int:
+  if len(initial_node.movable_pieces) == 1:
+    return initial_node.movable_pieces[0]
+  return alphabeta(initial_node, 0, -math.inf, math.inf)[0]
+
+
+def alphabeta(
+  node: RoyalGameOfUr,
+  depth: int,
+  alpha: float,
+  beta: float,
+) -> tuple[int, float]:
+  node_value = node.p1_score - node.p2_score
+
+  if node.winner is not None or depth == MAX_DEPTH:
+    return 0, node_value
+
+  best_move: tuple[int, float] = (0, -math.inf if node.turn == P1 else math.inf)
+
+  for pieceIdx in node.movable_pieces:
+    next_node = node.copy()
+    next_node.move(pieceIdx)
+    result = alphabeta(next_node, depth + 1, alpha, beta)
+    result = (pieceIdx, result[1])
+
+    if node.turn == P1:
+      best_move = max(result, best_move, key=lambda x: x[1])
+      if best_move[1] >= beta:
+        break
+      alpha = max(alpha, best_move[1])
+    else:
+      best_move = min(result, best_move, key=lambda x: x[1])
+      if best_move[1] <= alpha:
+        break
+      beta = min(beta, best_move[1])
+
+  return best_move
+
+
 def run():
   game = RoyalGameOfUr()
   while True:
@@ -215,11 +265,18 @@ def run():
       game.turn = not game.turn
       continue
 
-    while True:
-      ch = input("Enter Piece: ").strip().upper()
-      if ch in movable:
-        break
-    piece_idx = chars.index(ch)
+    if game.turn == P1:
+      while True:
+        ch = input("Enter Piece: ").strip().upper()
+        if ch in movable:
+          break
+      piece_idx = chars.index(ch)
+    else:
+      print("Computer Is Deciding Move...")
+      piece_idx = get_computer_move(game)
+      print(f"Computer Moved {chars[piece_idx]}")
+      time.sleep(1.5)
+
     curr_player = game.turn
     game.move(piece_idx)
 
