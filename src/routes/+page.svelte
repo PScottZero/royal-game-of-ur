@@ -3,6 +3,8 @@
 	import { NUM_PIECES, randint, RoyalGameOfUr } from '$lib/ur';
 	import { onMount } from 'svelte';
 
+	const TURN_TIMEOUT = 1500;
+
 	const CANVAS_WIDTH = 1700;
 	const CANVAS_HEIGHT = 700;
 	const CANVAS_OFFSET = 64;
@@ -12,11 +14,13 @@
 
 	const NUM_TILES = 24;
 	const INVISIBLE_TILES = [4, 5, 20, 21];
+	const START_TILES = [4, 20];
 
 	let p1Score = $state(0);
 	let p2Score = $state(0);
 	let p1UnusedPiecesCount = $state(NUM_PIECES);
 	let p2UnusedPiecesCount = $state(NUM_PIECES);
+	let dice = $state([0, 0, 0, 0]);
 
 	let pieceImg1: HTMLImageElement | undefined = undefined;
 	let pieceImg2: HTMLImageElement | undefined = undefined;
@@ -24,7 +28,7 @@
 	function loadImage(imageName: string): HTMLImageElement {
 		const img = new Image();
 		img.src = `${base}/${imageName}`;
-		img.onload = renderPieces;
+		img.onload = () => renderPieces();
 		return img;
 	}
 
@@ -68,7 +72,7 @@
 		return -1;
 	}
 
-	function renderPieces() {
+	function renderPieces(drawMovable = true) {
 		if (pieceImg1 !== undefined && pieceImg2 !== undefined) {
 			const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 			const ctx = canvas.getContext('2d')!;
@@ -79,11 +83,32 @@
 				const drawP1Piece = game.p1Pieces.includes(tile);
 				const drawP2Piece = game.p2Pieces.includes(tile);
 
-				if ((drawP1Piece || drawP2Piece) && !INVISIBLE_TILES.includes(tile)) {
-					const img = drawP1Piece ? pieceImg1 : pieceImg2;
+				const startTile = START_TILES[game.turn ? 0 : 1];
+
+				if (
+					(drawP1Piece || drawP2Piece) &&
+					(!INVISIBLE_TILES.includes(tile) ||
+						(drawMovable && startTile === tile))
+				) {
 					let [x, y] = getTileCenterCoords(tile);
+					if (startTile === tile) {
+						x += 16;
+						y += game.turn ? -40 : 40;
+					}
+
+					const pieceIdx = game.getPieces().indexOf(tile);
+					const movable = game.getMovablePieceIndices();
+					if (drawMovable && movable.includes(pieceIdx)) {
+						ctx.fillStyle = '#0055ff';
+						ctx.beginPath();
+						ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
+						ctx.fill();
+					}
+
 					x -= CANVAS_PIECE_SIZE / 2;
 					y -= CANVAS_PIECE_SIZE / 2;
+
+					const img = drawP1Piece ? pieceImg1 : pieceImg2;
 					ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
 				}
 			}
@@ -92,20 +117,26 @@
 			p2Score = game.getP2Score();
 			p1UnusedPiecesCount = game.getP1UnusedPiecesCount();
 			p2UnusedPiecesCount = game.getP2UnusedPiecesCount();
+			dice = game.dice;
 		}
 	}
 
-	function takeTurn() {
+	function takeTurn1() {
 		if (game.getWinner() !== undefined) game.reset();
 		game.roll();
+		renderPieces();
+		setTimeout(takeTurn2, TURN_TIMEOUT);
+	}
+
+	function takeTurn2() {
 		const movable = game.getMovablePieceIndices();
 		if (movable.length > 0) {
 			const idx = randint(2) === 0 ? randint(movable.length) : 0;
 			const pieceIdx = movable[idx];
 			game.move(pieceIdx);
-			renderPieces();
+			renderPieces(false);
 		}
-		setTimeout(takeTurn, 2000);
+		setTimeout(takeTurn1, TURN_TIMEOUT);
 	}
 
 	onMount(() => {
@@ -114,7 +145,7 @@
 
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 		canvas.addEventListener('click', clickToTile);
-		const timeout = setTimeout(takeTurn, 2000);
+		const timeout = setTimeout(takeTurn1, TURN_TIMEOUT);
 		return () => {
 			canvas.removeEventListener('click', clickToTile);
 			clearTimeout(timeout);
@@ -139,12 +170,21 @@
 <div id="menu">
 	<div id="player1-info" class="player-info">
 		<span>P1 {p1Score}</span>
-		{#each { length: p1UnusedPiecesCount }, i}
+		{#each { length: p1UnusedPiecesCount }, _}
 			<img src="{base}/piece1.svg" alt="Player 1 Piece" />
 		{/each}
 	</div>
+	<div id="dice">
+		{#each { length: 4 }, i}
+			{#if dice[i] > 2}
+				<img src="{base}/die2.svg" alt="Scoring Die" />
+			{:else}
+				<img src="{base}/die1.svg" alt="Non-Scoring Die" />
+			{/if}
+		{/each}
+	</div>
 	<div id="player2-info" class="player-info">
-		{#each { length: p2UnusedPiecesCount }, i}
+		{#each { length: p2UnusedPiecesCount }, _}
 			<img src="{base}/piece2.svg" alt="Player 2 Piece" />
 		{/each}
 		<span>{p2Score} P2</span>
@@ -166,7 +206,7 @@
 			font-family: 'Raleway', Arial, Helvetica, sans-serif;
 		}
 
-		body {
+		#grid {
 			display: grid;
 			grid-template-rows: 1fr auto 1fr;
 			width: 100vw;
@@ -219,17 +259,21 @@
 	}
 
 	#menu {
-		position: relative;
+		display: grid;
+		grid-template-columns: 16rem auto 16rem;
+		align-items: end;
+		padding: 0.5rem;
+		gap: 0.5rem;
 	}
 
 	.player-info {
-		position: absolute;
 		display: flex;
 		align-items: center;
 		bottom: 1rem;
 		font-size: 36px;
 		border-radius: 4px;
 		padding: 0.5rem;
+		height: 4rem;
 
 		img {
 			display: inline-block;
@@ -239,9 +283,9 @@
 	}
 
 	#player1-info {
+		justify-content: left;
 		color: #e5ded1;
 		border: 1px solid #e5ded1;
-		left: 1rem;
 
 		img {
 			margin-right: -2rem;
@@ -257,9 +301,9 @@
 	}
 
 	#player2-info {
+		justify-content: right;
 		color: #95a6bd;
 		border: 1px solid #95a6bd;
-		right: 1rem;
 
 		img {
 			margin-left: -2rem;
@@ -271,6 +315,17 @@
 
 		span {
 			margin-left: 0.5rem;
+		}
+	}
+
+	#dice {
+		display: flex;
+		justify-self: center;
+		gap: 0.5rem;
+		height: 4rem;
+
+		img {
+			height: 100%;
 		}
 	}
 </style>
