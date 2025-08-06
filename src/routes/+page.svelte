@@ -139,6 +139,20 @@
 		setTimeout(takeTurn1, TURN_TIMEOUT);
 	}
 
+	function dieValueToClass(idx: number): string {
+		let val = dice[idx];
+		if (val > 2) val -= 3;
+		switch (val) {
+			default:
+			case 0:
+				return "";
+			case 1:
+				return "rotate120";
+			case 2:
+				return "rotate240"
+		}
+	}
+
 	onMount(() => {
 		pieceImg1 = loadImage('piece1.svg');
 		pieceImg2 = loadImage('piece2.svg');
@@ -169,25 +183,21 @@
 
 <div id="menu">
 	<div id="player1-info" class="player-info">
-		<span>P1 {p1Score}</span>
+		<span>{p1Score}</span>
 		{#each { length: p1UnusedPiecesCount }, _}
 			<img src="{base}/piece1.svg" alt="Player 1 Piece" />
 		{/each}
 	</div>
 	<div id="dice">
 		{#each { length: 4 }, i}
-			{#if dice[i] > 2}
-				<img src="{base}/die2.svg" alt="Scoring Die" />
-			{:else}
-				<img src="{base}/die1.svg" alt="Non-Scoring Die" />
-			{/if}
+			<img src="{base}/die{dice[i] > 2 ? "2" : "1"}.svg" class={dieValueToClass(i)} alt="Die" />
 		{/each}
 	</div>
 	<div id="player2-info" class="player-info">
 		{#each { length: p2UnusedPiecesCount }, _}
 			<img src="{base}/piece2.svg" alt="Player 2 Piece" />
 		{/each}
-		<span>{p2Score} P2</span>
+		<span>{p2Score}</span>
 	</div>
 </div>
 
@@ -211,6 +221,7 @@
 			grid-template-rows: 1fr auto 1fr;
 			width: 100vw;
 			height: 100vh;
+			min-width: 42rem;
 		}
 
 		a {
@@ -260,7 +271,7 @@
 
 	#menu {
 		display: grid;
-		grid-template-columns: 16rem auto 16rem;
+		grid-template-columns: 12rem auto 12rem;
 		align-items: end;
 		padding: 0.5rem;
 		gap: 0.5rem;
@@ -270,6 +281,7 @@
 		display: flex;
 		align-items: center;
 		bottom: 1rem;
+		font-family: 'Roboto Mono', monospace;
 		font-size: 36px;
 		border-radius: 4px;
 		padding: 0.5rem;
@@ -285,7 +297,6 @@
 	#player1-info {
 		justify-content: left;
 		color: #e5ded1;
-		border: 1px solid #e5ded1;
 
 		img {
 			margin-right: -2rem;
@@ -303,7 +314,6 @@
 	#player2-info {
 		justify-content: right;
 		color: #95a6bd;
-		border: 1px solid #95a6bd;
 
 		img {
 			margin-left: -2rem;
@@ -323,9 +333,20 @@
 		justify-self: center;
 		gap: 0.5rem;
 		height: 4rem;
+		overflow: hidden;
 
 		img {
 			height: 100%;
 		}
+	}
+
+	.rotate120 {
+		transform-origin: center 63%;
+    transform: rotate(120deg);
+	}
+
+	.rotate240 {
+		transform-origin: center 63%;
+		transform: rotate(240deg);
 	}
 </style>
