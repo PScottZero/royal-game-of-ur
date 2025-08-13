@@ -10,8 +10,13 @@
 	const CANVAS_TILE_OFFSET = 200;
 	const CANVAS_PIECE_SIZE = 128;
 
-	const INVISIBLE_TILES = [4, 5, 20, 21];
 	const START_TILES = [4, 20];
+	const END_TILES = [5, 21];
+	const INVISIBLE_TILES = START_TILES.concat(END_TILES);
+
+	const FPS = 144;
+	const MS_PER_FRAME = 1000 / FPS;
+	const BASE_MOVE_SPEED = 10;
 
 	const game = new RoyalGameOfUr();
 
@@ -22,6 +27,15 @@
 	let dice = $state([0, 0, 0, 0]);
 	let turn = $state(true);
 	let winner: boolean | undefined = $state(undefined);
+
+	let movingPieceStartTile = -1;
+	let movingPieceEndTile = -1;
+	let movingPieceIdx = 0;
+	let moveStep = 0;
+	let lastRenderTime = Date.now();
+
+	let piece1Img: HTMLImageElement | undefined = undefined;
+	let piece2Img: HTMLImageElement | undefined = undefined;
 
 	function getTileCenterCoords(tile: number): number[] {
 		const col = tile % 8;
@@ -35,55 +49,127 @@
 		return [x, y];
 	}
 
-	function renderPieces() {
-		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
-		const ctx = canvas.getContext('2d')!;
+	function getMaxMoveSteps(): number {
+		let tile1 = movingPieceStartTile;
+		let tile2 = movingPieceEndTile;
 
-		const piece1 = document.getElementById('piece1') as HTMLImageElement;
-		const piece2 = document.getElementById('piece2') as HTMLImageElement;
+		const tile1OnCenterRow = tile1 >= 8 && tile1 < 16;
+		const tile2OnCenterRow = tile2 >= 8 && tile2 < 16;
 
-		const allPieces = game.p1Pieces.concat(game.p2Pieces);
-		const currPieces = game.getPieces();
-		const movablePieces = game.getMovablePieceIndices();
+		let rowTransition = 0;
+		if (tile1OnCenterRow && !tile2OnCenterRow) {
+			tile2 += tile2 < 8 ? 8 : -8;
+			rowTransition = 1;
+		} else if (!tile1OnCenterRow && tile2OnCenterRow) {
+			tile1 += tile1 < 8 ? 8 : -8;
+			rowTransition = 1;
+		}
 
-		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+		const moveSpeedMult = Math.abs(tile1 - tile2) + rowTransition;
+		return moveSpeedMult * BASE_MOVE_SPEED;
+	}
 
-		for (const pieceTile of allPieces) {
-			const startTile = START_TILES[game.turn ? 0 : 1];
-			const startPieceMovable =
-				pieceTile === startTile &&
-				movablePieces.includes(currPieces.indexOf(pieceTile));
+	function renderPieces(animateMove: boolean = false) {
+		let frameCount = 1;
+		let maxMoveSteps = getMaxMoveSteps();
 
-			if (!INVISIBLE_TILES.includes(pieceTile) || startPieceMovable) {
-				let [x, y] = getTileCenterCoords(pieceTile);
-				if (startTile === pieceTile) {
-					x += 16;
-					y += game.turn ? -40 : 40;
-				}
-
-				const pieceIdx = game.getPieces().indexOf(pieceTile);
-				if (movablePieces.includes(pieceIdx)) {
-					ctx.fillStyle = '#0055ff';
-					ctx.beginPath();
-					ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
-					ctx.fill();
-				}
-
-				x -= CANVAS_PIECE_SIZE / 2;
-				y -= CANVAS_PIECE_SIZE / 2;
-
-				const img = game.p1Pieces.includes(pieceTile) ? piece1 : piece2;
-				ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+		if (animateMove) {
+			const elapsedTime = Date.now() - lastRenderTime;
+			frameCount = Math.floor(elapsedTime / MS_PER_FRAME);
+			if (frameCount === 0) {
+				requestAnimationFrame(() => renderPieces(true));
+				return;
+			} else {
+				lastRenderTime = Date.now();
 			}
 		}
 
-		p1Score = game.getP1Score();
-		p2Score = game.getP2Score();
-		p1UnusedPiecesCount = game.getP1UnusedCount();
-		p2UnusedPiecesCount = game.getP2UnusedCount();
-		dice = game.dice;
-		turn = game.turn;
-		winner = game.getWinner();
+		for (let _ = 0; _ < frameCount; _++) {
+			const canvas = document.getElementById('pieces') as HTMLCanvasElement;
+			const ctx = canvas.getContext('2d')!;
+
+			// draw current player's pieces on top of other player's pieces
+			const allPieces = game.turn
+				? game.p2Pieces.concat(game.p1Pieces)
+				: game.p1Pieces.concat(game.p2Pieces);
+
+			const currPieces = game.getPieces();
+			const movablePieces = game.getMovablePieceIndices();
+
+			ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+			for (const pieceTile of allPieces) {
+				const startTile = START_TILES[game.turn ? 0 : 1];
+				const startPieceMovable =
+					pieceTile === startTile &&
+					movablePieces.includes(currPieces.indexOf(pieceTile));
+
+				if (!INVISIBLE_TILES.includes(pieceTile) || startPieceMovable) {
+					let [x, y] = getTileCenterCoords(pieceTile);
+
+					if (startTile === pieceTile) {
+						x += 16;
+						y += game.turn ? -40 : 40;
+					}
+
+					const renderingMovingPiece =
+						animateMove &&
+						movingPieceStartTile === pieceTile &&
+						moveStep < maxMoveSteps;
+
+					const pieceIdx = game.getPieces().indexOf(pieceTile);
+					if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
+						ctx.fillStyle = '#0055ff';
+						ctx.beginPath();
+						ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
+						ctx.fill();
+					}
+
+					x -= CANVAS_PIECE_SIZE / 2;
+					y -= CANVAS_PIECE_SIZE / 2;
+
+					if (renderingMovingPiece) {
+						let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
+
+						if (END_TILES.includes(movingPieceEndTile)) {
+							endX -= 16;
+							endY += game.turn ? -40 : 40;
+						}
+
+						endX -= CANVAS_PIECE_SIZE / 2;
+						endY -= CANVAS_PIECE_SIZE / 2;
+						
+						if (moveStep < maxMoveSteps) moveStep++;
+						
+						x += (endX - x) * (moveStep / maxMoveSteps);
+						y += (endY - y) * (moveStep / maxMoveSteps);
+					}
+
+					const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
+					ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+				}
+			}
+		}
+
+		if (animateMove) {
+			if (moveStep < maxMoveSteps) {
+				requestAnimationFrame(() => renderPieces(true));
+				return;
+			} else {
+				moveStep = 0;
+				maxMoveSteps = 0;
+				game.move(movingPieceIdx);
+				roll();
+			}
+		} else {
+			p1Score = game.getP1Score();
+			p2Score = game.getP2Score();
+			p1UnusedPiecesCount = game.getP1UnusedCount();
+			p2UnusedPiecesCount = game.getP2UnusedCount();
+			dice = game.dice;
+			turn = game.turn;
+			winner = game.getWinner();
+		}
 	}
 
 	function moveClickedPiece(e: MouseEvent) {
@@ -98,16 +184,21 @@
 		const x = Math.floor((e.clientX - bounds.left) * xRatio);
 		const y = Math.floor((e.clientY - bounds.top) * yRatio);
 
+		const pieces = game.getPieces();
+		const path = game.getPath();
 		for (const pieceIdx of game.getMovablePieceIndices()) {
-			const tile = game.getPieces()[pieceIdx];
+			const tile = pieces[pieceIdx];
 			const [tileX, tileY] = getTileCenterCoords(tile);
 			const lowerX = tileX - CANVAS_TILE_SIZE / 2;
 			const upperX = tileX + CANVAS_TILE_SIZE / 2;
 			const lowerY = tileY - CANVAS_TILE_SIZE / 2;
 			const upperY = tileY + CANVAS_TILE_SIZE / 2;
 			if (x >= lowerX && x <= upperX && y >= lowerY && y <= upperY) {
-				game.move(pieceIdx);
-				roll();
+				movingPieceStartTile = tile;
+				movingPieceEndTile = path[path.indexOf(tile) + game.getRollValue()];
+				movingPieceIdx = pieceIdx;
+				lastRenderTime = Date.now();
+				requestAnimationFrame(() => renderPieces(true));
 				break;
 			}
 		}
@@ -123,7 +214,7 @@
 
 	function roll() {
 		game.roll();
-		renderPieces();
+		requestAnimationFrame(() => renderPieces());
 		if (game.getMovablePieceIndices().length === 0) {
 			game.turn = !game.turn;
 			setTimeout(() => roll(), 1500);
@@ -138,7 +229,14 @@
 	onMount(() => {
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 		canvas.addEventListener('click', moveClickedPiece);
+
+		piece1Img = new Image();
+		piece2Img = new Image();
+		piece1Img.src = `${base}/piece1.svg`;
+		piece2Img.src = `${base}/piece2.svg`;
+
 		roll();
+
 		return () => {
 			canvas.removeEventListener('click', moveClickedPiece);
 		};
@@ -155,9 +253,9 @@
 </div>
 
 <div id="board">
-	{#if winner !== undefined }
+	{#if winner !== undefined}
 		<div id="reset">
-			<p>Player {winner ? "1" : "2"} Wins!!!</p>
+			<p>Player {winner ? '1' : '2'} Wins!!!</p>
 			<button onclick={resetGame}>New Game</button>
 		</div>
 	{/if}
@@ -188,9 +286,6 @@
 		<span>{p2Score}</span>
 	</div>
 </div>
-
-<img src="{base}/piece1.svg" id="piece1" alt="P1 Piece" style="display: none" />
-<img src="{base}/piece2.svg" id="piece2" alt="P2 Piece" style="display: none" />
 
 <style lang="scss">
 	:global {
