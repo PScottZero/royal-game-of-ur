@@ -10,9 +10,9 @@
 	const CANVAS_TILE_OFFSET = 200;
 	const CANVAS_PIECE_SIZE = 128;
 
+	const P1_START_END_TILES = [4, 5];
 	const START_TILES = [4, 20];
-	const END_TILES = [5, 21];
-	const INVISIBLE_TILES = START_TILES.concat(END_TILES);
+	const INVISIBLE_TILES = [4, 5, 20, 21];
 
 	const FPS = 144;
 	const MS_PER_FRAME = 1000 / FPS;
@@ -46,7 +46,16 @@
 		x += CANVAS_TILE_SIZE / 2;
 		y += CANVAS_TILE_SIZE / 2;
 
+		if (INVISIBLE_TILES.includes(tile)) {
+			x += START_TILES.includes(tile) ? 16 : -16;
+			y += P1_START_END_TILES.includes(tile) ? -40 : 40;
+		}
+
 		return [x, y];
+	}
+
+	function tileCoordsToPieceCoords(x: number, y: number): number[] {
+		return [x - CANVAS_PIECE_SIZE / 2, y - CANVAS_PIECE_SIZE / 2];
 	}
 
 	function getMaxMoveSteps(): number {
@@ -87,67 +96,40 @@
 		for (let _ = 0; _ < frameCount; _++) {
 			const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 			const ctx = canvas.getContext('2d')!;
-
-			// draw current player's pieces on top of other player's pieces
-			const allPieces = game.turn
-				? game.p2Pieces.concat(game.p1Pieces)
-				: game.p1Pieces.concat(game.p2Pieces);
-
-			const currPieces = game.getPieces();
-			const movablePieces = game.getMovablePieceIndices();
-
 			ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-			for (const pieceTile of allPieces) {
-				const startTile = START_TILES[game.turn ? 0 : 1];
-				const startPieceMovable =
-					pieceTile === startTile &&
-					movablePieces.includes(currPieces.indexOf(pieceTile));
+			const movablePieces = game.getMovablePieceIndices();
+			
+			for (const pieceTile of game.getBoardPieces()) {
+				let [x, y] = getTileCenterCoords(pieceTile);
 
-				if (!INVISIBLE_TILES.includes(pieceTile) || startPieceMovable) {
-					let [x, y] = getTileCenterCoords(pieceTile);
+				const renderingMovingPiece =
+					animateMove &&
+					movingPieceStartTile === pieceTile &&
+					moveStep < maxMoveSteps;
 
-					if (startTile === pieceTile) {
-						x += 16;
-						y += game.turn ? -40 : 40;
-					}
-
-					const renderingMovingPiece =
-						animateMove &&
-						movingPieceStartTile === pieceTile &&
-						moveStep < maxMoveSteps;
-
-					const pieceIdx = game.getPieces().indexOf(pieceTile);
-					if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
-						ctx.fillStyle = '#0055ff';
-						ctx.beginPath();
-						ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
-						ctx.fill();
-					}
-
-					x -= CANVAS_PIECE_SIZE / 2;
-					y -= CANVAS_PIECE_SIZE / 2;
-
-					if (renderingMovingPiece) {
-						let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
-
-						if (END_TILES.includes(movingPieceEndTile)) {
-							endX -= 16;
-							endY += game.turn ? -40 : 40;
-						}
-
-						endX -= CANVAS_PIECE_SIZE / 2;
-						endY -= CANVAS_PIECE_SIZE / 2;
-						
-						if (moveStep < maxMoveSteps) moveStep++;
-						
-						x += (endX - x) * (moveStep / maxMoveSteps);
-						y += (endY - y) * (moveStep / maxMoveSteps);
-					}
-
-					const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
-					ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+				const pieceIdx = game.getPieces().indexOf(pieceTile);
+				if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
+					ctx.fillStyle = '#0055ff';
+					ctx.beginPath();
+					ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
+					ctx.fill();
 				}
+
+				[x, y] = tileCoordsToPieceCoords(x, y);
+
+				if (renderingMovingPiece) {
+					let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
+					[endX, endY] = tileCoordsToPieceCoords(endX, endY);
+
+					if (moveStep < maxMoveSteps) moveStep++;
+
+					x += (endX - x) * (moveStep / maxMoveSteps);
+					y += (endY - y) * (moveStep / maxMoveSteps);
+				}
+
+				const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
+				ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
 			}
 		}
 
@@ -186,13 +168,16 @@
 
 		const pieces = game.getPieces();
 		const path = game.getPath();
+
 		for (const pieceIdx of game.getMovablePieceIndices()) {
 			const tile = pieces[pieceIdx];
 			const [tileX, tileY] = getTileCenterCoords(tile);
+
 			const lowerX = tileX - CANVAS_TILE_SIZE / 2;
 			const upperX = tileX + CANVAS_TILE_SIZE / 2;
 			const lowerY = tileY - CANVAS_TILE_SIZE / 2;
 			const upperY = tileY + CANVAS_TILE_SIZE / 2;
+
 			if (x >= lowerX && x <= upperX && y >= lowerY && y <= upperY) {
 				movingPieceStartTile = tile;
 				movingPieceEndTile = path[path.indexOf(tile) + game.getRollValue()];

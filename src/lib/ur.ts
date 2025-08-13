@@ -30,6 +30,12 @@ const P2_PATH = [
 const ROSETTE_TILES = [0, 6, 11, 16, 22];
 const SAFE_ROSETTE_TILE = 11;
 
+const P1_START_TILE = 4;
+const P2_START_TILE = 20;
+const P1_START_END_TILES = [4, 5];
+const START_TILES = [P1_START_TILE, P2_START_TILE];
+const OFF_BOARD_TILES = [4, 5, 20, 21];
+
 export class RoyalGameOfUr {
 	p1Pieces: number[];
 	p2Pieces: number[];
@@ -131,6 +137,25 @@ export class RoyalGameOfUr {
 
 	getP2UnusedCount(): number {
 		return this.p2Pieces.filter((tile) => tile === P2_PATH[0]).length;
+	}
+
+	getBoardPieces(): number[] {
+		const allPieces = this.turn
+			? this.p2Pieces.concat(this.p1Pieces)
+			: this.p1Pieces.concat(this.p2Pieces);
+		const movablePieceTiles = this.getMovablePieceIndices().map(idx => this.getPieces()[idx]);
+		const movableStartPieces = movablePieceTiles.filter(tile => START_TILES.includes(tile));
+		const movableStartPieceTile = movableStartPieces.length > 0 ? movableStartPieces[0] : -1;
+
+		const boardPieces: number[] = [];
+		for (const pieceTile of allPieces) {
+			const tileIsVisible = !OFF_BOARD_TILES.includes(pieceTile) || pieceTile === movableStartPieceTile;
+			if (!boardPieces.includes(pieceTile) && tileIsVisible) {
+				boardPieces.push(pieceTile);
+			}
+		}
+
+		return boardPieces;
 	}
 
 	getWinner(): boolean | undefined {
