@@ -15,7 +15,7 @@
 	const INVISIBLE_TILES = [4, 5, 20, 21];
 
 	const FPS = 144;
-	const MS_PER_FRAME = 1000 / FPS;
+	const MS_PER_FRAME = Math.ceil(1000 / FPS);
 	const BASE_MOVE_SPEED = 10;
 
 	const game = new RoyalGameOfUr();
@@ -79,58 +79,54 @@
 	}
 
 	function renderPieces(animateMove: boolean = false) {
-		let frameCount = 1;
 		let maxMoveSteps = getMaxMoveSteps();
 
 		if (animateMove) {
 			const elapsedTime = Date.now() - lastRenderTime;
-			frameCount = Math.floor(elapsedTime / MS_PER_FRAME);
-			if (frameCount === 0) {
+			if (elapsedTime > MS_PER_FRAME) {
+				lastRenderTime = Date.now();
+			} else {
 				requestAnimationFrame(() => renderPieces(true));
 				return;
-			} else {
-				lastRenderTime = Date.now();
 			}
 		}
 
-		for (let _ = 0; _ < frameCount; _++) {
-			const canvas = document.getElementById('pieces') as HTMLCanvasElement;
-			const ctx = canvas.getContext('2d')!;
-			ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
+		const ctx = canvas.getContext('2d')!;
+		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-			const movablePieces = game.getMovablePieceIndices();
-			
-			for (const pieceTile of game.getBoardPieces()) {
-				let [x, y] = getTileCenterCoords(pieceTile);
+		const movablePieces = game.getMovablePieceIndices();
 
-				const renderingMovingPiece =
-					animateMove &&
-					movingPieceStartTile === pieceTile &&
-					moveStep < maxMoveSteps;
+		for (const pieceTile of game.getBoardPieces()) {
+			let [x, y] = getTileCenterCoords(pieceTile);
 
-				const pieceIdx = game.getPieces().indexOf(pieceTile);
-				if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
-					ctx.fillStyle = '#0055ff';
-					ctx.beginPath();
-					ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
-					ctx.fill();
-				}
+			const renderingMovingPiece =
+				animateMove &&
+				movingPieceStartTile === pieceTile &&
+				moveStep < maxMoveSteps;
 
-				[x, y] = tileCoordsToPieceCoords(x, y);
-
-				if (renderingMovingPiece) {
-					let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
-					[endX, endY] = tileCoordsToPieceCoords(endX, endY);
-
-					if (moveStep < maxMoveSteps) moveStep++;
-
-					x += (endX - x) * (moveStep / maxMoveSteps);
-					y += (endY - y) * (moveStep / maxMoveSteps);
-				}
-
-				const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
-				ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
+			const pieceIdx = game.getPieces().indexOf(pieceTile);
+			if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
+				ctx.fillStyle = '#0055ff';
+				ctx.beginPath();
+				ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
+				ctx.fill();
 			}
+
+			[x, y] = tileCoordsToPieceCoords(x, y);
+
+			if (renderingMovingPiece) {
+				let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
+				[endX, endY] = tileCoordsToPieceCoords(endX, endY);
+
+				if (moveStep < maxMoveSteps) moveStep++;
+
+				x += (endX - x) * (moveStep / maxMoveSteps);
+				y += (endY - y) * (moveStep / maxMoveSteps);
+			}
+
+			const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
+			ctx.drawImage(img!, x, y, CANVAS_PIECE_SIZE, CANVAS_PIECE_SIZE);
 		}
 
 		if (animateMove) {
