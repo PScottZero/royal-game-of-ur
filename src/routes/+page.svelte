@@ -14,9 +14,7 @@
 	const START_TILES = [4, 20];
 	const INVISIBLE_TILES = [4, 5, 20, 21];
 
-	const FPS = 144;
-	const MS_PER_FRAME = Math.ceil(1000 / FPS);
-	const BASE_MOVE_SPEED = 10;
+	const BASE_MOVE_DURATION_MS = 100;
 
 	const game = new RoyalGameOfUr();
 
@@ -31,8 +29,7 @@
 	let movingPieceStartTile = -1;
 	let movingPieceEndTile = -1;
 	let movingPieceIdx = 0;
-	let moveStep = 0;
-	let lastRenderTime = Date.now();
+	let moveStartTime = Date.now();
 
 	let piece1Img: HTMLImageElement | undefined = undefined;
 	let piece2Img: HTMLImageElement | undefined = undefined;
@@ -58,7 +55,7 @@
 		return [x - CANVAS_PIECE_SIZE / 2, y - CANVAS_PIECE_SIZE / 2];
 	}
 
-	function getMaxMoveSteps(): number {
+	function getMoveDuration(): number {
 		let tile1 = movingPieceStartTile;
 		let tile2 = movingPieceEndTile;
 
@@ -74,39 +71,31 @@
 			rowTransition = 1;
 		}
 
-		const moveSpeedMult = Math.abs(tile1 - tile2) + rowTransition;
-		return moveSpeedMult * BASE_MOVE_SPEED;
+		const durationMult = Math.abs(tile1 - tile2) + rowTransition;
+		return durationMult * BASE_MOVE_DURATION_MS;
 	}
 
 	function renderPieces(animateMove: boolean = false) {
-		let maxMoveSteps = getMaxMoveSteps();
+		const moveDuration = getMoveDuration();
+		const elapsedTime = Date.now() - moveStartTime;
+		let moveProgress = elapsedTime / moveDuration;
 
-		if (animateMove) {
-			const elapsedTime = Date.now() - lastRenderTime;
-			if (elapsedTime > MS_PER_FRAME) {
-				lastRenderTime = Date.now();
-			} else {
-				requestAnimationFrame(() => renderPieces(true));
-				return;
-			}
-		}
+		if (animateMove && moveProgress >= 1) moveProgress = 1;
 
 		const canvas = document.getElementById('pieces') as HTMLCanvasElement;
 		const ctx = canvas.getContext('2d')!;
 		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+		const pieces = game.getPieces();
 		const movablePieces = game.getMovablePieceIndices();
 
 		for (const pieceTile of game.getBoardPieces()) {
 			let [x, y] = getTileCenterCoords(pieceTile);
 
-			const renderingMovingPiece =
-				animateMove &&
-				movingPieceStartTile === pieceTile &&
-				moveStep < maxMoveSteps;
+			const isMovingPiece = animateMove && movingPieceStartTile === pieceTile;
+			const pieceIdx = pieces.indexOf(pieceTile);
 
-			const pieceIdx = game.getPieces().indexOf(pieceTile);
-			if (!renderingMovingPiece && movablePieces.includes(pieceIdx)) {
+			if (!isMovingPiece && movablePieces.includes(pieceIdx)) {
 				ctx.fillStyle = '#0055ff';
 				ctx.beginPath();
 				ctx.arc(x, y, CANVAS_PIECE_SIZE / 2 + 8, 0, 2 * Math.PI);
@@ -115,14 +104,11 @@
 
 			[x, y] = tileCoordsToPieceCoords(x, y);
 
-			if (renderingMovingPiece) {
+			if (isMovingPiece) {
 				let [endX, endY] = getTileCenterCoords(movingPieceEndTile);
 				[endX, endY] = tileCoordsToPieceCoords(endX, endY);
-
-				if (moveStep < maxMoveSteps) moveStep++;
-
-				x += (endX - x) * (moveStep / maxMoveSteps);
-				y += (endY - y) * (moveStep / maxMoveSteps);
+				x += (endX - x) * moveProgress;
+				y += (endY - y) * moveProgress;
 			}
 
 			const img = game.p1Pieces.includes(pieceTile) ? piece1Img : piece2Img;
@@ -130,12 +116,10 @@
 		}
 
 		if (animateMove) {
-			if (moveStep < maxMoveSteps) {
+			if (moveProgress < 1) {
 				requestAnimationFrame(() => renderPieces(true));
 				return;
 			} else {
-				moveStep = 0;
-				maxMoveSteps = 0;
 				game.move(movingPieceIdx);
 				roll();
 			}
@@ -178,7 +162,7 @@
 				movingPieceStartTile = tile;
 				movingPieceEndTile = path[path.indexOf(tile) + game.getRollValue()];
 				movingPieceIdx = pieceIdx;
-				lastRenderTime = Date.now();
+				moveStartTime = Date.now();
 				requestAnimationFrame(() => renderPieces(true));
 				break;
 			}
@@ -195,11 +179,13 @@
 
 	function roll() {
 		game.roll();
-		requestAnimationFrame(() => renderPieces());
-		if (game.getMovablePieceIndices().length === 0) {
-			game.turn = !game.turn;
-			setTimeout(() => roll(), 1500);
-		}
+		requestAnimationFrame(() => {
+			renderPieces();
+			if (game.getMovablePieceIndices().length === 0) {
+				game.turn = !game.turn;
+				setTimeout(() => roll(), 1500);
+			}
+		});
 	}
 
 	function resetGame() {
@@ -233,15 +219,17 @@
 	<span class="cuneiform">𒊒𒅋 𒂵𒅎 𒄴 𒌨</span>
 </div>
 
-<div id="board">
-	{#if winner !== undefined}
-		<div id="reset">
-			<p>Player {winner ? '1' : '2'} Wins!!!</p>
-			<button onclick={resetGame}>New Game</button>
-		</div>
-	{/if}
-	<img src="{base}/board.svg" alt="Game Board" />
-	<canvas id="pieces" width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
+<div id="board-wrapper">
+	<div id="board">
+		{#if winner !== undefined}
+			<div id="reset">
+				<p>Player {winner ? '1' : '2'} Wins!!!</p>
+				<button onclick={resetGame}>New Game</button>
+			</div>
+		{/if}
+		<img src="{base}/board.svg" alt="Game Board" />
+		<canvas id="pieces" width={CANVAS_WIDTH} height={CANVAS_HEIGHT}></canvas>
+	</div>
 </div>
 
 <div id="menu">
@@ -285,10 +273,10 @@
 
 		#grid {
 			display: grid;
-			grid-template-rows: 1fr auto 1fr;
+			grid-template-rows: auto 1fr auto;
 			width: 100vw;
 			height: 100vh;
-			min-width: 42rem;
+			min-width: 44rem;
 		}
 
 		a {
@@ -299,6 +287,12 @@
 	@font-face {
 		font-family: 'Assurbanipal';
 		src: url('/Assurbanipal.ttf');
+	}
+
+	@mixin mobile {
+		@media screen and (max-width: 1024px) {
+			@content;
+		}
 	}
 
 	#title {
@@ -316,11 +310,17 @@
 		font-size: 36px;
 	}
 
+	#board-wrapper {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+	}
+
 	#board {
 		position: relative;
 		width: 100%;
-		height: 100%;
-		padding: 0 4rem;
+		height: auto;
+		padding: 0 10%;
 
 		img {
 			width: 100%;
@@ -331,33 +331,38 @@
 	#pieces {
 		position: absolute;
 		top: 0;
-		left: 4rem;
-		width: calc(100% - 8rem);
+		left: 10%;
+		width: 80%;
 		height: 100%;
 	}
 
 	#menu {
 		display: grid;
-		grid-template-columns: 12rem auto 12rem;
+		grid-template-columns: 12.5rem auto 12.5rem;
 		align-items: end;
 		padding: 0.5rem;
 		gap: 0.5rem;
 	}
 
 	.player-info {
+		transition: 0.1s;
 		display: flex;
 		align-items: center;
 		bottom: 1rem;
 		font-family: 'Roboto Mono', monospace;
 		font-size: 36px;
-		border-radius: 4px;
-		padding: 0.5rem;
 		height: 4rem;
+		border-radius: 2rem;
+		padding: 0.5rem;
 
 		img {
 			display: inline-block;
 			vertical-align: bottom;
 			height: 3rem;
+		}
+
+		span {
+			margin: 0 0.5rem;
 		}
 	}
 
@@ -377,10 +382,6 @@
 				margin-right: 0;
 			}
 		}
-
-		span {
-			margin-right: 0.5rem;
-		}
 	}
 
 	#player2-info {
@@ -399,10 +400,6 @@
 				margin-left: 0;
 			}
 		}
-
-		span {
-			margin-left: 0.5rem;
-		}
 	}
 
 	#dice {
@@ -414,6 +411,7 @@
 		overflow: hidden;
 
 		img {
+			transition: 0.2s;
 			height: 100%;
 			transform-origin: center 63%;
 		}
